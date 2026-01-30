@@ -4,6 +4,7 @@ import numpy as np
 from logger import ActivityLogger
 from ultralytics import YOLO
 from ai_assistant import SmartAssistant
+from telegram_notifier import TelegramNotifier
 
 class SurveillanceSystem:
     def __init__(self):
@@ -26,12 +27,18 @@ class SurveillanceSystem:
         self.ai = SmartAssistant()
         self.last_routine_check = time.time()
         
+        # 5. Telegram Bot
+        self.telegram = TelegramNotifier(
+            token="8503256297:AAEgqw4YG5UbZbvR4DJSU_EGbxcgvMhjXJo",
+            chat_id="7718614749"
+        )
+        
         self.logger = ActivityLogger()
         self.frame_count = 0
         
         # Alert Thresholds
         self.violation_count = 0
-        self.alert_limit = 10 
+        self.alert_limit = 5 # Reduced from 10 to 5 for faster response
 
     def process_frame(self, frame):
         if frame is None:
@@ -107,10 +114,12 @@ class SurveillanceSystem:
         
         for p_i, (px1, py1, px2, py2) in enumerate(persons):
             # Check ROI Violation
+            # Check ROI Violation
             feet_point = (int((px1 + px2) / 2), py2)
             if cv2.pointPolygonTest(roi_points, feet_point, False) >= 0:
                 roi_violation = True
                 cv2.circle(annotated_frame, feet_point, 5, (0, 0, 255), -1)
+                cv2.putText(annotated_frame, "RESTRICTED", (px1, py1-35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
             # Helmet Matching Prep
             p_center_x = (px1 + px2) // 2
@@ -158,13 +167,13 @@ class SurveillanceSystem:
         
         # Priority: ROI Violation > No Helmet
         if roi_violation:
-            self.violation_count = min(30, self.violation_count + 2)
+            self.violation_count = min(30, self.violation_count + 5) # Immediate Alert
             
         elif not persons:
             self.violation_count = 0
             
         elif violation_found:
-            self.violation_count = min(30, self.violation_count + 1)
+            self.violation_count = min(30, self.violation_count + 2) # Faster increment
         else:
             self.violation_count = max(0, self.violation_count - 2)
         
@@ -172,17 +181,21 @@ class SurveillanceSystem:
         status_lines = []
         
         if roi_violation:
-             status_lines.append(("ALERT: RESTRICTED ZONE", (0, 0, 255)))
+             status_lines.append(("CRITICAL: UNAUTHORIZED ACCESS", (0, 0, 255)))
              
         if self.violation_count > self.alert_limit:
-             status_lines.append(("ALERT: SAFETY VIOLATION", (0, 0, 255)))
+             status_lines.append(("WARNING: NO HELMET DETECTED", (0, 0, 255)))
              
         if not status_lines:
              status_lines.append(("Status: Monitoring", (0, 255, 0)))
 
         # Trigger Actions
         if self.violation_count > self.alert_limit or roi_violation:
-            violation_type = "Restricted Zone Violation" if roi_violation else "No Helmet Detected"
+            parts = []
+            if roi_violation: parts.append("Restricted Zone Violation")
+            if self.violation_count > self.alert_limit: parts.append("No Helmet Detected")
+            
+            violation_type = " + ".join(parts)
 
             # 1. Log to CSV
             if self.frame_count % 60 == 0:
@@ -191,6 +204,9 @@ class SurveillanceSystem:
             # 2. TRIGGER GEMINI AI
             trigger_msg = f"High Priority: {violation_type}"
             self.ai.analyze_scene(frame, trigger_reason=trigger_msg)
+            
+            # 3. TRIGGER TELEGRAM ALERT
+            self.telegram.send_frame(frame, caption=f"🚨 ALERT: {violation_type}")
 
         # Complex Hazard Check
         if time.time() - self.last_routine_check > 15.0:
