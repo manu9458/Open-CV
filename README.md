@@ -1,10 +1,6 @@
-# Industrial Safety Monitoring System (ISMS)
+# Industrial Grade Motion Monitoring System
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Python](https://img.shields.io/badge/python-3.9%2B-yellow.svg)
-
-A production-grade, computer vision-based surveillance system designed for industrial environments. This system detects personnel, verifies Personal Protective Equipment (PPE) compliance (specifically hard hats), and monitors restricted zones in real-time.
+This project is a modular, high-performance motion detection system using OpenCV.
 
 ## Key Features
 
