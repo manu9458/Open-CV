@@ -1,4 +1,4 @@
-# Industrial Grade Motion Monitoring System
+# Industrial Grade AI  Monitoring System
 
 This project is a modular, high-performance motion detection system using OpenCV.
 
